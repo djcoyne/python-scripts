@@ -16,13 +16,13 @@ import it. It will support up to 10 lines (more is just spaghetti)
     title: string
         Graph title
 
-    xvar: item
+    x: item
         Location in data for the x-axis variable (running time variable).
         Can be a number or a column header.
     
-    yvar: list of strings
+    y: list of strings
          Location and labels for y values for lines.
-         Should take the format ["location = 'y1 loc', label='y1 label'","location = 'y2 loc', label = 'y2 label'",...]
+         Should take the format ['location = y1 loc, label=y1 label','location = y2 loc, label = y2 label',...]
      
     xti: string
          Title string for x-axis label
@@ -38,7 +38,10 @@ import it. It will support up to 10 lines (more is just spaghetti)
         Added y-lines
         Should take the format ["y=value, axhline options","y=value, axhline options",...]
         
-    errorband: list of tuples
+    errorband: list of strings
+        location of estimates, location of standard errors, and (optionally) CI for plotting.
+        Should take the format ['est= est1 location, se= se1 location, ci = ci1',... ]
+        ci can take values 90, 95, 99.
      
     Returns
     --------------
@@ -50,6 +53,7 @@ import it. It will support up to 10 lines (more is just spaghetti)
 
 import pandas as pd
 import matplotlib.pyplot as plt
+from sys import exit
 
 def mltsgraph(data, xvar, yvar, title='', xti='', yti='', xline=None, yline=None, errorband=None):
     
@@ -77,7 +81,7 @@ def mltsgraph(data, xvar, yvar, title='', xti='', yti='', xline=None, yline=None
         df = pd.read_csv(data)
     except:
         print('Error: Data file "' +data+ '" not found!')
-        exit(2)
+        exit(1)
 
     """
     Define the figure
@@ -113,10 +117,13 @@ def mltsgraph(data, xvar, yvar, title='', xti='', yti='', xline=None, yline=None
                'color=tomato, marker=CARETRIGHT, markersize=5']
                
 
+    estimates=[]    
+    
     i=0
     for yv in yvar:
         yvarg = dict(e.split('=') for e in yv.split(', '))
         newY = yVar(**yvarg)
+        estimates.append(newY.location)
         la = "label="+newY.label
         linearg = dict(e.split('=') for e in la.split(', '))        
         plotarg = dict(e.split('=') for e in plotMap[i].split(', '))
@@ -128,8 +135,19 @@ def mltsgraph(data, xvar, yvar, title='', xti='', yti='', xline=None, yline=None
     """
     Error Bar Section
     """
+    
     if errorband:
-        errorBand(errorband)
+        for eb in errorband:
+            ebarg = dict(e.split('=') for e in eb.split(', '))
+            eBand = errorBand(**ebarg)
+            ebcolor = dict(e.split('=') for e in plotMap[estimates.index(str(eBand.est))].split(', '))['color']
+            if eBand.ci == '95':
+                c = 1.96
+            elif eBand.ci == '99':
+                c = 2.575
+            else:
+                c = 1.64
+            plt.fill_between(df[xvar], df[eBand.est]+c*df[eBand.se], df[eBand.est]-c*df[eBand.se], alpha = 0.15, color=ebcolor)
         
     """
     Graph finishing and return
@@ -146,9 +164,13 @@ class yVar(object):
     def __init__(self, location='', label=''):
         self.location=location
         self.label=label     
-    
-def errorBand():
-    print('ERRORBAND!')     
+        
+class errorBand(object): 
+    def __init__(self, est='', se='', ci='90'):
+        self.est=est
+        self.se=se
+        self.ci=ci            
+          
     
     
          
